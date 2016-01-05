@@ -13,6 +13,7 @@ const SATOSHI = 1;
  * Arguments {}
  * @network [OPTIONAL]
  * @fee [OPTIONAL]
+ * @timelock [OPTIONAL]
  * @amount 
  * @multiSigTxValue
  * @multiSigTxHash
@@ -22,11 +23,11 @@ const SATOSHI = 1;
  * @serverPubKey
  */
 function Payment(args) {
-	var compulsoryProperties = ['amount', 'multiSigTxValue', 'multiSigTxHash', 
+	this.compulsoryProperties = ['amount', 'multiSigTxValue', 'multiSigTxHash', 
 		'refundAddress', 'paymentAddress', 'clientMultiSigKey', 'serverPubKey'
 	];
 
-	compulsoryProperties.forEach(function(p) {
+	this.compulsoryProperties.forEach(function(p) {
 		if (!args.hasOwnProperty(p)) {
 			throw new Error('Compulsory property omitted : \"' + p + '\"');
 		}
@@ -51,7 +52,12 @@ function Payment(args) {
 		throw new Error('insufficient input value to cover for output value');
 	}
 
-	txb.addInput(args.multiSigTxHash, 0);
+	if (args.locktime) {
+		txb.tx.locktime = args.locktime;
+		txb.addInput(args.multiSigTxHash, 0, 0);
+	} else {
+		txb.addInput(args.multiSigTxHash, 0);	
+	}
 
 	if ((args.multiSigTxValue - args.amount - args.fee) > 0) {
 		txb.addOutput(args.refundAddress, args.multiSigTxValue - args.amount - args.fee);
