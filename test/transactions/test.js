@@ -27,6 +27,30 @@ blocktrail.addressUnspentOutputs(clientkey.getAddress(), function(err, utxos) {
     console.log(commitmentTx.tx.toHex());
     console.log(commitmentTx.tx.getId());
 
+    var refundTx = new payment_channel.Refund({
+        network : bitcoin.networks.testnet,
+        fee : 300,
+        amount : 200,
+        multiSigTxValue : commitmentTx.getMultiSigOutputValue(),
+        multiSigTxHash : commitmentTx.tx.getId(),
+        refundAddress : 'n3C6KQBdkvUiFJrXwAvAsK1JJqMxKWCBo2',
+        paymentAddress : 'mmyhgJpSh4TNDvU5gPaSGwNSkVZUZBgpPp',
+        clientMultiSigKey : clientkey,
+        serverPubKey : providerkey.getPublicKeyBuffer().toString('hex')
+    }).tx;
+    console.log('PARTIAL Refund Transaction \n\n');
+    console.log(refundTx);
+
+    refundTx = payment_channel.Refund.signTx({
+        tx : refundTx,
+        serverMultiSigKey : providerkey,
+        clientPublicKey : clientkey.getPublicKeyBuffer().toString('hex'),
+        network : bitcoin.networks.testnet
+    });
+
+    console.log('FULL Refund Tx \n\n');
+    console.log(refundTx);
+
     var paymentTx = new payment_channel.Payment({
         network : bitcoin.networks.testnet,
         fee : 300,
@@ -48,5 +72,6 @@ blocktrail.addressUnspentOutputs(clientkey.getAddress(), function(err, utxos) {
     });
     console.log('FULL Payment Transaction \n\n');
     console.log(paymentTx);
+
 });
 

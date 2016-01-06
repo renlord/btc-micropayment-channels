@@ -18,23 +18,15 @@ const DAY = 60 * 60 * 24;
  * @serverPubKey 
  */
 function Refund(args) {
-	Payment.call(this, compulsoryProperties);
-
-	this.compulsoryProperties.forEach(function(p) {
-		if (!args.hasOwnProperty(p)) {
-			throw new Error('Compulsory property omitted : \"' + p + '\"');
-		}
-	});
-
 	args.locktime = args.timelock ? args.timelock : DAY;
 
 	var temp = args.refundAddress;
 	args.refundAddress = args.paymentAddress;
 	args.paymentAddress = args.refundAddress;
 
-	return new Payment(args);
+	Payment.call(this, args);
 }
 
-Refund.prototype = Object.create(Payment);
+Refund.signTx = Payment.signTx;
 
 module.exports = Refund;
