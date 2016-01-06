@@ -8,7 +8,7 @@ const DAY = 60 * 60 * 24;
  * ARGUMENT {} object
  * @network [OPTIONAL]
  * @fee [OPTIONAL]
- * @locktime [OPTIONAL] defaults to a day
+ * @locktime [OPTIONAL] duration of lock from now, defaults to a day
  * @amount 
  * @multiSigTxValue
  * @multiSigTxHash
@@ -18,7 +18,8 @@ const DAY = 60 * 60 * 24;
  * @serverPubKey 
  */
 function Refund(args) {
-	args.locktime = args.timelock ? args.timelock : DAY;
+	var s = Math.floor((new Date).getTime() / 1000);
+	args.locktime = args.timelock ? (s + args.timelock) : (s + DAY);
 
 	var temp = args.refundAddress;
 	args.refundAddress = args.paymentAddress;

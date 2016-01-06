@@ -14,6 +14,7 @@ const SATOSHI = 1;
  * @network [OPTIONAL]
  * @fee [OPTIONAL]
  * @timelock [OPTIONAL]
+ * @sequence [OPTIONAL]
  * @amount 
  * @multiSigTxValue
  * @multiSigTxHash
@@ -56,7 +57,11 @@ function Payment(args) {
 		txb.tx.locktime = args.locktime;
 		txb.addInput(args.multiSigTxHash, 0, 0);
 	} else {
-		txb.addInput(args.multiSigTxHash, 0);	
+		if (args.sequence) {
+			txb.addInput(args.multiSigTxHash, 0, this._sequence);	
+		} else {
+			txb.addInput(args.multiSigTxHash, 0);
+		}
 	}
 
 	if ((args.multiSigTxValue - args.amount - args.fee) > 0) {

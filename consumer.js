@@ -5,6 +5,8 @@ var Commitment 	= require('./transaction/commitment');
 var Payment 		= require('./transaction/payment');
 
 const BIT = 100; 
+const TWO_HOURS = 60 * 60 * 2;
+
 /**
  * Consumer instance for client side
  *
@@ -17,6 +19,7 @@ const BIT = 100;
  * @utxoKeys, keypairs to spend `utxos`
  * @depositAmount, amount to be deposited into the shared account
  * @txFee
+ * @locktime [OPTIONAL], default to one day
  * @network [OPTIONAL]
  */
 function Consumer(opts) {
@@ -31,7 +34,7 @@ function Consumer(opts) {
 		}
 	})
 
-	var network = opts.network ? opts.network : bitcoin.networks.testnet;
+	this._network = opts.network ? opts.network : bitcoin.networks.testnet;
 
 	this._paymentCounter = 0;
 
@@ -61,31 +64,74 @@ function Consumer(opts) {
 	this._refundAddress = opts.refundAddress;
 	this._paymentAddress = opts.paymentAddress;
 
-	this._consumerKeyPair = opts.consumerKeyPair;
-	this._providerPubKey = opts.providerPubKey;
+	if (opts.consumerKeyPair) {
+		this._consumerKeyPair = opts.consumerKeyPair;
+	} else {
+		this._consumerKeyPair = bitcoin.ECPair.makeRandom({ network : this._network });
+	}
 
+	if (opts.providerPubKey instanceof String) {
+		this._providerPubKey = new Buffer(opts.providerPubKey, 'hex');
+	} else if (opts.providerPubKey instanceof Buffer) {
+		this._providerPubKey = opts.providerPubKey;
+	} else {
+		throw new Error('invalid type for providerPubKey');
+	}
+
+	this._depositAmount = opts.depositAmount;
+	
 	// Important Transactions
 	this._commitmentTx = new Commitment({
-		network : network,
+		network : this._network,
     utxos : utxos,
     utxosKeys : utxoKeys,
     providerPubKey : this._providerPubKey,
     changeAddress : this._refundAddress,
-    amount : opts.depositAmount,
+    amount : this._depositAmount,
     fee : this._txFee
 	}).tx;
 
-	this._refundTx = new Refund({
+	this._commitmentTxOutputValue = 0;
+	this._commitmentTx.outs.forEach(function(out) {
+		this._commitmentTxOutputValue += out.value;
+	})
 
+	this._refundTx = new Refund({
+		network : this._network,
+    fee : this._txFee,
+    locktime : this._locktime,
+    amount : this._commitmentTxOutputValue - this._txFee,
+    multiSigTxValue : this._commitmentTxOutputValue,
+    multiSigTxHash : this._commitmentTx.getId(),
+    refundAddress : this._refundAddress,
+    paymentAddress : this._paymentAddress,
+    clientMultiSigKey : this._consumerKeyPair,
+    serverPubKey : this._providerPubKey
 	}).tx;
 
-	this._paymentTx = new Payment({
+	this._sentAmount = 0;
 
+	this._paymentTx = new Payment({
+		network : this._network,
+    fee : this._txFee,
+    amount : this._sentAmount,
+    sequence : this._paymentCounter,
+    multiSigTxValue : this._commitmentTxOutputValue,
+    multiSigTxHash : this._commitmentTx.getId(),
+    refundAddress : this._refundAddress,
+    paymentAddress : this._paymentAddress,
+    clientMultiSigKey : this._consumerKeyPair,
+    serverPubKey : this._providerPubKey
 	}).tx;
 }
 
+/**
+ * convenience function (OPTIONAL workflow)
+ * 
+ * ARGUMENTS
+ * @callback, a callback function to send the commitmentTx (ie. to fund the shared account)
+ */
 Consumer.prototype.sendCommitmentTx = function(callback) {
-
 	callback(this._commitmentTx);
 }
 
@@ -99,7 +145,6 @@ Consumer.prototype.sendCommitmentTx = function(callback) {
  * commitmentTx back to the provider.
  */
 Consumer.prototype.broadcastCommitmentTx = function(callback) {
-
 	callback(this._commitmentTx.getId());
 }
 
@@ -109,12 +154,20 @@ Consumer.prototype.broadcastCommitmentTx = function(callback) {
  * @callback, a callback function to broadcast the refundTx to the Bitcoin Network
  */
 Consumer.prototype.broadcastRefundTx = function(callback) {
-
+	var time = Math.floor((new Date).getTime() / 1000);
+	if ((this._refundTx.locktime - time) > TWO_HOURS) {
+		console.log('\n\nTransaction Hash: \"' + this._refundTx.getId() + '\"\n\n');
+		throw new Error('recent bitcoin protocol changes forbids the broadcast of \
+			transactions until they are due to be committed to the blockchain!');
+	}
 	// if not due for broadcast, print the refundTx to stdout.
-
 	callback(this._refundTx.getId());
 }
 
+/**
+ * convenience function
+ * sends the refundTx to the server for signing
+ */
 Consumer.prototype.sendRefundTx = function(callback) {
 	callback(this._refundTx);
 }
@@ -125,7 +178,8 @@ Consumer.prototype.sendRefundTx = function(callback) {
  * @tx, the refundTx sent back from the provider
  */
 Consumer.prototype.validateRefund = function(tx) {
-
+	// TODO: validate the refundTx
+	this._refundTx = tx;
 	return true;
 }
 
@@ -136,6 +190,24 @@ Consumer.prototype.validateRefund = function(tx) {
  * @callback, a callback function to send the paymentTx back to the provider
  */
 Consumer.prototype.incrementPayment = function(amount, callback) {
+	this._sentAmount += amount;
+
+	if (this._sentAmount > this._depositAmount) {
+		throw new Error('insufficient funds to increment payments');
+	}
+
+	this._paymentTx = new Payment({
+		network : this._network,
+    fee : this._txFee,
+    amount : this._sentAmount,
+    sequence : ++this._paymentCounter,
+    multiSigTxValue : this._commitmentTxOutputValue,
+    multiSigTxHash : this._commitmentTx.getId(),
+    refundAddress : this._refundAddress,
+    paymentAddress : this._paymentAddress,
+    clientMultiSigKey : this._consumerKeyPair,
+    serverPubKey : this._providerPubKey
+	}).tx;
 
 	callback(this._paymentTx.getId());
 }
