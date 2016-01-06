@@ -21,7 +21,7 @@ function Provider(opts) {
 		throw new Error('consumerPubKey must be provided');
 	}
 
-	var network = opts.network ? opts.network : bitcoin.networks.testnet;
+	this._network = opts.network ? opts.network : bitcoin.networks.testnet;
 
 	if (opts.providerKeyPair) {
 		if (!opts.providerKeyPair instanceof bitcoin.ECPair) {
@@ -29,12 +29,15 @@ function Provider(opts) {
 		}
 		this._providerKeyPair = opts.providerKeyPair;
 	} else {
-		this._providerKeyPair = bitcoin.ECPair.makeRandom({ network : network });
+		this._providerKeyPair = bitcoin.ECPair.makeRandom({ network : this._network });
 	}
 
 	if (!consumerPubKey instanceof String) {
 		throw new Error('consumerPubKey should be type String');
 	}
+
+	// Important Properties
+	this._receivedAmount = 0;
 
 	// Important Transactions
 	this._commitmentTx = null;
@@ -68,33 +71,69 @@ Provider.prototype.getSharedPubKey = function() {
 
 /**
  * performs a basic check of the refundTx then signs it
+ * upon success, it will be stored in this._refundTx
  *
  * ARGUMEMTS
- * @tx, refundTx
+ * @txHash, refundTx hash
  */
-Provider.prototype.signRefundTx = function(tx) {
+Provider.prototype.signRefundTx = function(txHash) {
+	this._checkConsumerPubKey();
+	
+	// TODO: check refundTx is correct
+	var tx = bitcoin.Transaction.fromHex(txHash);
+	var txb = bitcoin.TransactionBuilder.fromTransaction(tx, this._network);
+	var pubKeys = [
+		this._consumerPubKey,
+		this._providerKeyPair.getPublicKeyBuffer()
+	];
+	var redeemScript = bitcoin.script.multisigOutput(2, pubKeys);
+	txb.sign(0, this._providerKeyPair, redeemScript);
+	this._refundTx = txb.build();
+}
+
+Provider.prototype.sendRefundTx = function(callback) {
+	if (!this._refundTx) {
+		throw new Error('refundTx not yet received and signed');
+	}
+	callback(this._refundTx.toHex());
+}
+
+/**
+ * convenience function (OPTIONAL workflow)
+ */
+Provider.prototype.broadcastCommitmentTx = function(txHash, callback) {
+	// verify commitmentTx
+	callback(txHash);
+}
+
+/**
+ * checks and signs the paymentTx 
+ * 
+ * ARGUMENTS
+ * @txHash, paymentTx transaction hash
+ * @
+ */
+Provider.prototype.checkAndSignPaymentTx = function(txHash, expectedAmount) {	
 	this._checkConsumerPubKey();
 
-	return tx;
-}
+	var tx = bitcoin.Transaction.fromHex(tx);
 
-Provider.prototype.broadcastCommitmentTx = function(tx, callback) {
-	// verify commitmentTx
-	this._commitmentTx = tx;
-	callback(this._commitmentTx);
-}
+	// check transaction
+	if (tx.outs[0].value !== expectedAmount) {
+		throw new PaymentTxError('consumer prepared invalid paymentTx');
+	}
 
-Provider.prototype.checkPaymentTx = function(tx, expectedAmount) {
-	
-}
-
-Provider.prototype.signPaymentTx = function(tx) {
-
+	this._paymentTx = Payment.signTx({
+		tx : tx,
+		serverMultiSigKey : this._providerKeyPair,
+		clientPublicKey : this._consumerPubKey,
+		network : this._network
+	});
 }
 
 Provider.prototype.broadcastPaymentTx = function(callback) {
 	if (this._paymentTx === null) {
 		throw new Error('there is no paymentTx yet');
 	}
-	callback(this._paymentTx);
+	callback(this._paymentTx.toHex());
 }

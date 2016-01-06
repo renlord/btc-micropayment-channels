@@ -132,7 +132,7 @@ function Consumer(opts) {
  * @callback, a callback function to send the commitmentTx (ie. to fund the shared account)
  */
 Consumer.prototype.sendCommitmentTx = function(callback) {
-	callback(this._commitmentTx);
+	callback(this._commitmentTx.getId());
 }
 
 /**
@@ -145,7 +145,7 @@ Consumer.prototype.sendCommitmentTx = function(callback) {
  * commitmentTx back to the provider.
  */
 Consumer.prototype.broadcastCommitmentTx = function(callback) {
-	callback(this._commitmentTx.getId());
+	callback(this._commitmentTx.toHex());
 }
 
 /**
@@ -161,7 +161,7 @@ Consumer.prototype.broadcastRefundTx = function(callback) {
 			transactions until they are due to be committed to the blockchain!');
 	}
 	// if not due for broadcast, print the refundTx to stdout.
-	callback(this._refundTx.getId());
+	callback(this._refundTx.toHex();
 }
 
 /**
@@ -169,7 +169,7 @@ Consumer.prototype.broadcastRefundTx = function(callback) {
  * sends the refundTx to the server for signing
  */
 Consumer.prototype.sendRefundTx = function(callback) {
-	callback(this._refundTx);
+	callback(this._refundTx.toHex());
 }
 
 /**
@@ -209,7 +209,7 @@ Consumer.prototype.incrementPayment = function(amount, callback) {
     serverPubKey : this._providerPubKey
 	}).tx;
 
-	callback(this._paymentTx.getId());
+	callback(this._paymentTx.toHex());
 }
 
 module.exports = Consumer;

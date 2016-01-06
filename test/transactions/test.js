@@ -24,8 +24,6 @@ blocktrail.addressUnspentOutputs(clientkey.getAddress(), function(err, utxos) {
         amount : 500,
         fee : 300
     });
-    console.log(commitmentTx.tx.toHex());
-    console.log(commitmentTx.tx.getId());
 
     var refundTx = new payment_channel.Refund({
         network : bitcoin.networks.testnet,
@@ -55,6 +53,7 @@ blocktrail.addressUnspentOutputs(clientkey.getAddress(), function(err, utxos) {
         network : bitcoin.networks.testnet,
         fee : 300,
         amount : 200,
+        sequence : 1,
         multiSigTxValue : commitmentTx.getMultiSigOutputValue(),
         multiSigTxHash : commitmentTx.tx.getId(),
         refundAddress : 'n3C6KQBdkvUiFJrXwAvAsK1JJqMxKWCBo2',
@@ -62,8 +61,11 @@ blocktrail.addressUnspentOutputs(clientkey.getAddress(), function(err, utxos) {
         clientMultiSigKey : clientkey,
         serverPubKey : providerkey.getPublicKeyBuffer().toString('hex')
     }).tx;
+    
     console.log('PARTIAL Payment Transaction \n\n');
     console.log(paymentTx);
+    var hash1 = paymentTx.toHex();
+
     paymentTx = payment_channel.Payment.signTx({
         tx : paymentTx,
         serverMultiSigKey : providerkey,
@@ -72,6 +74,8 @@ blocktrail.addressUnspentOutputs(clientkey.getAddress(), function(err, utxos) {
     });
     console.log('FULL Payment Transaction \n\n');
     console.log(paymentTx);
+    var hash2 = paymentTx.toHex();
 
+    assert.notEqual(hash1, hash2, 'paymentTxs are the same!');
 });
 

@@ -58,16 +58,16 @@ function Payment(args) {
 		txb.addInput(args.multiSigTxHash, 0, 0);
 	} else {
 		if (args.sequence) {
-			txb.addInput(args.multiSigTxHash, 0, this._sequence);	
+			txb.addInput(args.multiSigTxHash, 0, args.sequence);	
 		} else {
 			txb.addInput(args.multiSigTxHash, 0);
 		}
 	}
 
+	txb.addOutput(args.paymentAddress, args.amount);
 	if ((args.multiSigTxValue - args.amount - args.fee) > 0) {
 		txb.addOutput(args.refundAddress, args.multiSigTxValue - args.amount - args.fee);
 	}
-	txb.addOutput(args.paymentAddress, args.amount);
 
 	var pubKeys = [
 		args.clientMultiSigKey.getPublicKeyBuffer(),
@@ -109,6 +109,7 @@ Payment.signTx = function(args) {
 		args.serverMultiSigKey.getPublicKeyBuffer()
 	];	
 	var redeemScript = bitcoin.script.multisigOutput(2, pubKeys);
+
 	txb.sign(0, args.serverMultiSigKey, redeemScript);
 	return txb.build();
 }
