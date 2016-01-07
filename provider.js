@@ -1,8 +1,8 @@
 "use strict";
 var bitcoin 		= require('bitcoinjs-lib');
-var Refund 			= require('./transaction/refund');
-var Commitment 	= require('./transaction/commitment');
-var Payment 		= require('./transaction/payment');
+var Refund 			= require('./transactions/refund');
+var Commitment 	= require('./transactions/commitment');
+var Payment 		= require('./transactions/payment');
 
 const BIT = 100; 
 
@@ -137,3 +137,5 @@ Provider.prototype.broadcastPaymentTx = function(callback) {
 	}
 	callback(this._paymentTx.toHex());
 }
+
+module.exports = Provider;

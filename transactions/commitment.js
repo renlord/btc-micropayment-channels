@@ -3,6 +3,9 @@ var bitcoin 		= require('bitcoinjs-lib');
 
 const SATOSHI = 1;
 const BIT 		= 100 * SATOSHI; 
+const BTC 		= 100000000;
+
+const MIN_FEE = 1000;
 
 /**
  * Commitment object is a Lock Transaction
@@ -29,12 +32,11 @@ function Commitment(args) {
 	});
 
 	var network = args.network ? args.network : bitcoin.networks.testnet;
-	console.log(network);
 	var txb = new bitcoin.TransactionBuilder(network);
 	
-	var fee = args.fee ? args.fee : 300;
+	var fee = args.fee ? args.fee : MIN_FEE;
 
-	if (fee < 300) {
+	if (fee < MIN_FEE) {
 		throw new Error('too little fees!');
 	}
 
@@ -56,10 +58,10 @@ function Commitment(args) {
 
 	var utxosValue = 0; // in satoshis...
 
-	for (var i = 0; i < args.utxos.length; i++) {
-		utxosValue += args.utxos[i].value; 
-		txb.addInput(args.utxos[i].hash, i);
-	}
+	args.utxos.forEach(function(utxo) {
+		utxosValue += Math.round(utxo.amount * BTC); 
+		txb.addInput(utxo.txid, utxo.vout, bitcoin.Transaction.DEFAULT_SEQUENCE);
+	})
 
 	if ((args.amount + fee) > utxosValue) {
 		throw new Error('Insufficient Input Funds for Output');

@@ -2,8 +2,8 @@
 
 var bitcoin = require('bitcoinjs-lib');
 
-const BIT 		= 100; 
-const SATOSHI = 1;
+const BTC = 100000000;
+const MIN_FEE = 1000;
 
 /**
  * Payment object is used to pay provider
@@ -16,16 +16,15 @@ const SATOSHI = 1;
  * @timelock [OPTIONAL]
  * @sequence [OPTIONAL]
  * @amount 
- * @multiSigTxValue
- * @multiSigTxHash
+ * @utxos
  * @refundAddress
  * @paymentAddress
  * @clientMultiSigKey
  * @serverPubKey
  */
 function Payment(args) {
-	this.compulsoryProperties = ['amount', 'multiSigTxValue', 'multiSigTxHash', 
-		'refundAddress', 'paymentAddress', 'clientMultiSigKey', 'serverPubKey'
+	this.compulsoryProperties = ['amount', 'utxos', 'refundAddress', 
+		'paymentAddress', 'clientMultiSigKey', 'serverPubKey'
 	];
 
 	this.compulsoryProperties.forEach(function(p) {
@@ -40,12 +39,9 @@ function Payment(args) {
 		var txb = new bitcoin.TransactionBuilder(bitcoin.networks.testnet);
 	}
 
-	var fee = 0;
-	if (!args.fee) {
-		fee = 300;
-	}
+	var fee = args.fee ? args.fee : MIN_FEE;
 
-	if (args.fee < 300) {
+	if (args.fee < MIN_FEE) {
 		throw new Error('fee cannot be less than 300 Satoshis');
 	}
 
@@ -54,28 +50,46 @@ function Payment(args) {
 	}
 
 	if (args.locktime) {
-		txb.tx.locktime = args.locktime;
-		txb.addInput(args.multiSigTxHash, 0, 0);
-	} else {
-		if (args.sequence) {
-			txb.addInput(args.multiSigTxHash, 0, args.sequence);	
-		} else {
-			txb.addInput(args.multiSigTxHash, 0);
+		if (args.sequence && (args.sequence > 0)) {
+			throw new ParameterError('sequence cannot be greater than zero when there is locktime');
 		}
+
+		if (args.locktime < ((new Date).getTime() / 1000)) {
+			throw new ParameterError('locktime cannot be before current time');
+		}
+		txb.tx.locktime = args.locktime;
+		args.sequence = 0;
+	}	
+
+	if (args.sequence && (args.sequence >= bitcoin.Transaction.DEFAULT_SEQUENCE)) {
+		throw new ParameterError('sequence cannot be greater or equal to max sequence');
 	}
 
-	txb.addOutput(args.paymentAddress, args.amount);
-	if ((args.multiSigTxValue - args.amount - args.fee) > 0) {
-		txb.addOutput(args.refundAddress, args.multiSigTxValue - args.amount - args.fee);
-	}
-
+	var utxosValue = 0;
 	var pubKeys = [
 		args.clientMultiSigKey.getPublicKeyBuffer(),
 		new Buffer(args.serverPubKey, 'hex')
 	];
-	
 	var redeemScript = bitcoin.script.multisigOutput(2, pubKeys);
-	txb.sign(0, args.clientMultiSigKey, redeemScript);
+	for (var i = 0; i < args.utxos.length; i++) {
+		utxosValue += args.utxos[i].amount * BTC;
+		txb.addInput(args.utxos[i].txid, args.utxos[i].vout, args.sequence);
+		
+	}
+	utxosValue = Math.round(utxosValue);
+
+	if (utxosValue < (args.amount + args.fee)) {
+		throw new ParameterError('insufficient inputs to finance outputs and fees');
+	}
+
+	txb.addOutput(args.paymentAddress, args.amount);
+	if ((utxosValue - args.amount - args.fee) > 0) {
+		txb.addOutput(args.refundAddress, utxosValue - args.amount - args.fee);
+	}
+
+	for (var i = 0; i < args.utxos.length; i++) {
+		txb.sign(i, args.clientMultiSigKey, redeemScript);
+	}
 
 	this.tx = txb.buildIncomplete();
 }
@@ -83,7 +97,7 @@ function Payment(args) {
 /**
  * For the server to sign the Payment Transaction.
  * ARGUMENTS {} Object
- * @tx 
+ * @tx
  * @serverMultiSigKey
  * @clientPublicKey
  * @network [OPTIONAL]
@@ -93,12 +107,16 @@ Payment.signTx = function(args) {
 
 	compulsoryProperties.forEach(function(p) {
 		if (!args.hasOwnProperty(p)) {
-			throw new Error('Compulsory property omitted : \"' + p + '\"');
+			throw new ParameterError('Compulsory property omitted : \"' + p + '\"');
 		}
 	})
 
 	if (!args.serverMultiSigKey instanceof bitcoin.ECPair) {
-		throw new Error('args.serverMultiSigKey should be type ECPair');
+		throw new TypeError('args.serverMultiSigKey should be type ECPair');
+	}
+
+	if (!args.tx instanceof bitcoin.Transaction) {
+		throw new TypeError('args.tx should be type bitcoin.Transaction');
 	}
 
 	var network = args.network ? args.network : bitcoin.networks.testnet;
@@ -110,7 +128,9 @@ Payment.signTx = function(args) {
 	];	
 	var redeemScript = bitcoin.script.multisigOutput(2, pubKeys);
 
-	txb.sign(0, args.serverMultiSigKey, redeemScript);
+	for (var i = 0; i < txb.inputs.length; i++) {
+		txb.sign(i, args.serverMultiSigKey, redeemScript);
+	}
 	return txb.build();
 }
 

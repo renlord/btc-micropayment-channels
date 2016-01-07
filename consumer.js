@@ -1,8 +1,8 @@
 "use strict";
 var bitcoin 		= require('bitcoinjs-lib');
-var Refund 			= require('./transaction/refund');
-var Commitment 	= require('./transaction/commitment');
-var Payment 		= require('./transaction/payment');
+var Refund 			= require('./transactions/refund');
+var Commitment 	= require('./transactions/commitment');
+var Payment 		= require('./transactions/payment');
 
 const BIT = 100; 
 const TWO_HOURS = 60 * 60 * 2;
@@ -161,7 +161,7 @@ Consumer.prototype.broadcastRefundTx = function(callback) {
 			transactions until they are due to be committed to the blockchain!');
 	}
 	// if not due for broadcast, print the refundTx to stdout.
-	callback(this._refundTx.toHex();
+	callback(this._refundTx.toHex());
 }
 
 /**
