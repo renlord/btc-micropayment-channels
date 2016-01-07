@@ -22,7 +22,8 @@ It was difficult understanding what was going on in other libraries. Too much ab
 - bitcoinjs-lib
 
 ### Test Dependencies
-- Blocktrail Node.js SDK for Testing
+- Request 
+- Async
 - Mocha.js
 
 ### Disclaimer
