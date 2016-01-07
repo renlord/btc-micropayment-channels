@@ -5,6 +5,7 @@ var Commitment 	= require('./transactions/commitment');
 var Payment 		= require('./transactions/payment');
 
 const BIT = 100; 
+const BTC = 100000000;
 const TWO_HOURS = 60 * 60 * 2;
 
 /**
@@ -17,7 +18,7 @@ const TWO_HOURS = 60 * 60 * 2;
  * @paymentAddress, address where multisig output should be paid to
  * @utxos, unspent transaction outputs
  * @utxoKeys, keypairs to spend `utxos`
- * @depositAmount, amount to be deposited into the shared account
+ * @depositAmount, amount to be deposited into the shared account in satoshis
  * @txFee
  * @locktime [OPTIONAL], default to one day
  * @network [OPTIONAL]
@@ -28,9 +29,9 @@ function Consumer(opts) {
 		'paymentAddress', 'utxos', 'utxoKeys', 'txFee', 'depositAmount'
 	];
 
-	opts.forEach(function(opt) {
-		if (!opt) {
-			throw new Error('missing parameter in argument object : \"' + opt + '\"');
+	compulsoryProperties.forEach(function(prop) {
+		if (!opts.hasOwnProperty(prop)) {
+			throw new ParameterError('Compulsory property omitted : \"' + p + '\"');
 		}
 	})
 
@@ -38,24 +39,25 @@ function Consumer(opts) {
 
 	this._paymentCounter = 0;
 
-	if (opts.txFee < (3 * BIT)) {
-		throw new Error('txFee is too low. min. txFee is set to 3bits');
+	if (opts.txFee < (5 * BIT)) {
+		throw new Error('txFee is too low. min. txFee is set to 5bits');
 	}
 	this._txFee = opts.txFee;
 
 	// check total value of utxos
-	if (!utxos instanceof Array || !utxoKeys instanceof Array) {
+	if (!opts.utxos instanceof Array || !opts.utxoKeys instanceof Array) {
 		throw new Error('utxos and utxoKeys should be of type Array');
 	}
 
-	if (utxos.length !== utxoKeys.length) {
+	if (opts.utxos.length !== opts.utxoKeys.length) {
 		throw new Error('insufficient keypairs to authorise utxo spends');
 	}
 
 	var utxosValue = 0;
-	utxos.forEach(function(utxo) {
-		utxosValue += utxo.value;
+	opts.utxos.forEach(function(utxo) {
+		utxosValue += utxo.amount * BTC;
 	});
+	utxosValue = Math.round(utxosValue);
 
 	if (utxosValue < (this._txFee + opts.depositAmount)) {
 		throw new Error('insufficient utxo value to establish channel');
@@ -81,28 +83,26 @@ function Consumer(opts) {
 	this._depositAmount = opts.depositAmount;
 	
 	// Important Transactions
-	this._commitmentTx = new Commitment({
+	this._commitment = new Commitment({
 		network : this._network,
-    utxos : utxos,
-    utxosKeys : utxoKeys,
+    utxos : opts.utxos,
+    utxosKeys : opts.utxoKeys,
+    clientKeyPair : this._consumerKeyPair,
     providerPubKey : this._providerPubKey,
     changeAddress : this._refundAddress,
     amount : this._depositAmount,
     fee : this._txFee
-	}).tx;
+	});
 
-	this._commitmentTxOutputValue = 0;
-	this._commitmentTx.outs.forEach(function(out) {
-		this._commitmentTxOutputValue += out.value;
-	})
+	this._commitmentTx = this._commitment.tx;
+	this._commitmentTxOutputValue = this._commitmentTx.outs[0].value;
 
 	this._refundTx = new Refund({
 		network : this._network,
     fee : this._txFee,
     locktime : this._locktime,
     amount : this._commitmentTxOutputValue - this._txFee,
-    multiSigTxValue : this._commitmentTxOutputValue,
-    multiSigTxHash : this._commitmentTx.getId(),
+    utxos : [this._commitment.getMultiSigUTXO()],
     refundAddress : this._refundAddress,
     paymentAddress : this._paymentAddress,
     clientMultiSigKey : this._consumerKeyPair,
@@ -116,8 +116,7 @@ function Consumer(opts) {
     fee : this._txFee,
     amount : this._sentAmount,
     sequence : this._paymentCounter,
-    multiSigTxValue : this._commitmentTxOutputValue,
-    multiSigTxHash : this._commitmentTx.getId(),
+    utxos : [this._commitment.getMultiSigUTXO()],
     refundAddress : this._refundAddress,
     paymentAddress : this._paymentAddress,
     clientMultiSigKey : this._consumerKeyPair,
@@ -132,9 +131,20 @@ function Consumer(opts) {
  * @callback, a callback function to send the commitmentTx (ie. to fund the shared account)
  */
 Consumer.prototype.sendCommitmentTx = function(callback) {
-	callback(this._commitmentTx.getId());
+	callback(this._commitmentTx.toHex());
 }
 
+/**
+ * convenience function (COMPULSORY workflow)
+ * the Consumer instance should ALWAYS communicate the consumer public key to
+ * the provider.
+ * 
+ * ARGUMENTS
+ * @callback, a callback function to send the consumer pubkey.
+ */
+Consumer.prototype.sendConsumerPubKey = function(callback) {
+	callback(this._consumerKeyPair.getPublicKeyBuffer().toString('hex'));
+}
 /**
  * Used to broadcast the commitmentTx after the refundTx has been signed by the
  * provider and validated by the consumer.
@@ -201,8 +211,7 @@ Consumer.prototype.incrementPayment = function(amount, callback) {
     fee : this._txFee,
     amount : this._sentAmount,
     sequence : ++this._paymentCounter,
-    multiSigTxValue : this._commitmentTxOutputValue,
-    multiSigTxHash : this._commitmentTx.getId(),
+    utxos : [this._commitment.getMultiSigUTXO()],
     refundAddress : this._refundAddress,
     paymentAddress : this._paymentAddress,
     clientMultiSigKey : this._consumerKeyPair,

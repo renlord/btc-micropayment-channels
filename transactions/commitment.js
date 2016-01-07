@@ -67,9 +67,9 @@ function Commitment(args) {
 		throw new Error('Insufficient Input Funds for Output');
 	}
 
-	this.multiSigScriptHashValue = args.amount;
+	this.multiSigScriptHashValue = (args.amount / BTC);
 
-	txb.addOutput(this.commitmentAddress, this.multiSigScriptHashValue);
+	txb.addOutput(this.commitmentAddress, args.amount);
 	if (args.amount < utxosValue) {
 		txb.addOutput(args.changeAddress, utxosValue - args.amount - fee);
 	}
@@ -81,12 +81,12 @@ function Commitment(args) {
 	this.tx = txb.build();
 }
 
-Commitment.prototype.getMultiSigOutputValue = function() {
-	return this.multiSigScriptHashValue;
-}
-
-Commitment.prototype.getMultiSigOutputScript = function() {
-	return this.multiSigOutputScript;
+Commitment.prototype.getMultiSigUTXO = function() {
+	return {
+		txid: this.tx.getId(),
+    vout: 0,
+    amount: this.multiSigScriptHashValue,
+	}
 }
 
 module.exports = Commitment;

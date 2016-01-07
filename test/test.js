@@ -180,3 +180,109 @@ describe('refundTx', function() {
     ]);
   })
 })
+
+describe('payment channel', function() {
+  it('complete the entire payment channel process', function() {
+    // we assume that the consumer has the providerPubKey and
+    // the provider has the consumerPubKey
+    var consumer = null;
+    var provider = null;
+
+    var commitTx = null;
+    var refundTx = null;
+    var paymentTx = null;
+
+    async.series([
+      function(callback) {
+        // create commitmentTx BUT do not broadcast
+        request
+        .get(URL + ADDR + clientkey.getAddress() + "/" + UTXO)
+        .on('data', function(chunk) {
+          var data = JSON.parse(chunk.toString('utf8'));
+          console.log(data);
+          var utxosKey = [];
+          for (var i = 0; i < data.length; i++) {
+            utxosKey.push(clientkey);
+          }
+
+          consumer = new payment_channel.Consumer({
+            consumerKeyPair : clientkey,
+            providerPubKey : providerkey.getPublicKeyBuffer(),
+            refundAddress : clientkey.getAddress(),
+            paymentAddress : providerkey.getAddress(),
+            utxos : data,
+            utxoKeys : utxosKey,
+            depositAmount : 1000000,
+            txFee : 5000,
+            network : bitcoin.networks.testnet
+          });
+
+          provider = new payment_channel.Provider({
+            providerKeyPair : providerkey,
+            consumerPubKey : clientkey.getPublicKeyBuffer(),
+            refundAddress : clientkey.getAddress(),
+            paymentAddress : providerkey.getAddress(),
+            network : bitcoin.networks.testnet
+          });
+
+          consumer.sendCommitmentTx(function(tx) {
+            commitTx = tx;
+            console.log(commitTx);
+          })
+
+          callback();
+        })
+      },
+      function(callback) {
+        // create refundTx
+        consumer.sendRefundTx(function(tx) {
+          refundTx = tx;
+          callback();
+        })
+      },
+      function(callback) {
+        // server signs the refundTx
+        provider.signRefundTx(refundTx);
+        provider.sendRefundTx(function(tx) {
+          console.log(tx);
+          callback();
+        })
+      },
+      function(callback) {
+        request
+        .post({
+          url : URL + SEND, 
+          form : { rawtx : commitTx }
+        })
+        .on('data', function(chunk) {
+          var data = JSON.parse(chunk.toString('utf8'));
+          console.log(data);
+          assert.strictEqual(data.hasOwnProperty('txid'), true, 'broadcast was not successful');
+          callback();
+        })
+      },
+      function(callback) {
+        // increment payment 1 time and server signs it
+        consumer.incrementPayment(10000, function(tx) {
+          provider.checkAndSignPaymentTx(tx, 10000);
+          callback();
+        });
+      },
+      function(callback) {
+        provider.broadcastPaymentTx(function(tx) {
+          request
+          .post({
+            url : URL + SEND, 
+            form : { rawtx : tx }
+          })
+          .on('data', function(chunk) {
+            var data = JSON.parse(chunk.toString('utf8'));
+            console.log(data);
+            assert.strictEqual(data.hasOwnProperty('txid'), true, 'broadcast was not successful');
+            callback();
+          })
+        })
+      }
+    ]);
+  })
+})

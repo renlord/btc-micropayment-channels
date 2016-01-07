@@ -72,11 +72,10 @@ function Payment(args) {
 	];
 	var redeemScript = bitcoin.script.multisigOutput(2, pubKeys);
 	for (var i = 0; i < args.utxos.length; i++) {
-		utxosValue += args.utxos[i].amount * BTC;
+		utxosValue += (args.utxos[i].amount * BTC);
 		txb.addInput(args.utxos[i].txid, args.utxos[i].vout, args.sequence);
 		
 	}
-	utxosValue = Math.round(utxosValue);
 
 	if (utxosValue < (args.amount + args.fee)) {
 		throw new ParameterError('insufficient inputs to finance outputs and fees');

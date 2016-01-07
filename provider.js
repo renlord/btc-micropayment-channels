@@ -17,10 +17,6 @@ const BIT = 100;
  * @network [OPTIONAL]
  */
 function Provider(opts) {
-	if (!opts.consumerPubKey) {
-		throw new Error('consumerPubKey must be provided');
-	}
-
 	this._network = opts.network ? opts.network : bitcoin.networks.testnet;
 
 	if (opts.providerKeyPair) {
@@ -32,8 +28,11 @@ function Provider(opts) {
 		this._providerKeyPair = bitcoin.ECPair.makeRandom({ network : this._network });
 	}
 
-	if (!consumerPubKey instanceof String) {
-		throw new Error('consumerPubKey should be type String');
+	if (opts.consumerPubKey) {
+		if (!opts.consumerPubKey instanceof String) {	
+			throw new TypeError('consumerPubKey should be type String');
+		}
+		this._consumerPubKey = new Buffer(opts.consumerPubKey, 'hex');
 	}
 
 	// Important Properties
@@ -111,12 +110,14 @@ Provider.prototype.broadcastCommitmentTx = function(txHash, callback) {
  * 
  * ARGUMENTS
  * @txHash, paymentTx transaction hash
- * @
+ * @expectedAmount, BTC payment in Satoshis
+ *
+ * THROWS
+ * @PaymentTxError
  */
 Provider.prototype.checkAndSignPaymentTx = function(txHash, expectedAmount) {	
 	this._checkConsumerPubKey();
-
-	var tx = bitcoin.Transaction.fromHex(tx);
+	var tx = bitcoin.Transaction.fromHex(txHash);
 
 	// check transaction
 	if (tx.outs[0].value !== expectedAmount) {
