@@ -28,3 +28,6 @@ It was difficult understanding what was going on in other libraries. Too much ab
 
 ### Disclaimer
 Given what is said above, I strongly insist that this runs only on "testnet". Even so, please make an effort to not "accidentally" destroy any testnet coins!
+
+### Repository Link
+[Github](https://github.com/renlord/payment-channels)

@@ -263,8 +263,8 @@ describe('payment channel', function() {
       },
       function(callback) {
         // increment payment 1 time and server signs it
-        consumer.incrementPayment(10000, function(tx) {
-          provider.checkAndSignPaymentTx(tx, 10000);
+        consumer.incrementPayment(1500, function(tx) {
+          provider.checkAndSignPaymentTx(tx, 1500);
           callback();
         });
       },
