@@ -1,6 +1,6 @@
-# Bitcoin Simple Payment Channels
+# Bitcoin Micropayment Channels
 ---
-A simple, straight-forward Micropayment Channel library in Javascript.
+A simple, straight-forward Jeremy Spillman BTC Micropayment Channel library in Javascript.
 
 ### Why was this written?
 It was difficult understanding what was going on in other libraries. Too much abstraction and reliance on other libraries. Some where just plain difficult to setup at the first place. 

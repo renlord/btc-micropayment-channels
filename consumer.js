@@ -1,12 +1,12 @@
-"use strict";
-var bitcoin 		= require('bitcoinjs-lib');
-var Refund 			= require('./transactions/refund');
-var Commitment 	= require('./transactions/commitment');
-var Payment 		= require('./transactions/payment');
+"use strict"
+const bitcoin 		= require('bitcoinjs-lib')
+const Refund 	    = require('./transactions/refund')
+const Commitment 	= require('./transactions/commitment')
+const Payment 		= require('./transactions/payment')
 
-const BIT = 100; 
-const BTC = 100000000;
-const TWO_HOURS = 60 * 60 * 2;
+const BIT           = 100 
+const BTC           = 100000000
+const TWO_HOURS     = 60 * 60 * 2
 
 /**
  * Consumer instance for client side
@@ -25,13 +25,13 @@ const TWO_HOURS = 60 * 60 * 2;
  */
 function Consumer(opts) {
 
-	var compulsoryProperties = ['providerPubKey', 'refundAddress',
+	const compulsoryProperties = ['providerPubKey', 'refundAddress',
 		'paymentAddress', 'utxos', 'utxoKeys', 'txFee', 'depositAmount'
-	];
+	]
 
 	compulsoryProperties.forEach(function(prop) {
 		if (!opts.hasOwnProperty(prop)) {
-			throw new ParameterError('Compulsory property omitted : \"' + p + '\"');
+			throw new Error('Compulsory property omitted : \"' + p + '\"');
 		}
 	})
 
@@ -166,9 +166,8 @@ Consumer.prototype.broadcastCommitmentTx = function(callback) {
 Consumer.prototype.broadcastRefundTx = function(callback) {
 	var time = Math.floor((new Date).getTime() / 1000);
 	if ((this._refundTx.locktime - time) > TWO_HOURS) {
-		console.log('\n\nTransaction Hash: \"' + this._refundTx.getId() + '\"\n\n');
-		throw new Error('recent bitcoin protocol changes forbids the broadcast of \
-			transactions until they are due to be committed to the blockchain!');
+		throw new Error('recent bitcoin protocol changes forbids the broadcast of ' +
+			'transactions until they are due to be committed to the blockchain!');
 	}
 	// if not due for broadcast, print the refundTx to stdout.
 	callback(this._refundTx.toHex());

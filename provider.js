@@ -1,10 +1,10 @@
-"use strict";
-var bitcoin 		= require('bitcoinjs-lib');
-var Refund 			= require('./transactions/refund');
-var Commitment 	= require('./transactions/commitment');
-var Payment 		= require('./transactions/payment');
+"use strict"
+const bitcoin 		= require('bitcoinjs-lib')
+const Refund 	    = require('./transactions/refund')
+const Commitment 	= require('./transactions/commitment')
+const Payment 		= require('./transactions/payment')
 
-const BIT = 100; 
+const BIT           = 100
 
 /**
  * Provider instance for server side
@@ -17,37 +17,37 @@ const BIT = 100;
  * @network [OPTIONAL]
  */
 function Provider(opts) {
-	this._network = opts.network ? opts.network : bitcoin.networks.testnet;
+	this._network = opts.network ? opts.network : bitcoin.networks.testnet
 
 	if (opts.providerKeyPair) {
 		if (!opts.providerKeyPair instanceof bitcoin.ECPair) {
-			throw new Error('provided providerKeyPair should be type bitcoin.ECPair');
+			throw new Error('provided providerKeyPair should be type bitcoin.ECPair')
 		}
-		this._providerKeyPair = opts.providerKeyPair;
+		this._providerKeyPair = opts.providerKeyPair
 	} else {
-		this._providerKeyPair = bitcoin.ECPair.makeRandom({ network : this._network });
+		this._providerKeyPair = bitcoin.ECPair.makeRandom({ network : this._network })
 	}
 
 	if (opts.consumerPubKey) {
 		if (!opts.consumerPubKey instanceof String) {	
-			throw new TypeError('consumerPubKey should be type String');
+			throw new Error('consumerPubKey should be type String')
 		}
-		this._consumerPubKey = new Buffer(opts.consumerPubKey, 'hex');
+		this._consumerPubKey = new Buffer(opts.consumerPubKey, 'hex')
 	}
 
 	// Important Properties
-	this._receivedAmount = 0;
+	this._receivedAmount = 0
 
 	// Important Transactions
-	this._commitmentTx = null;
-	this._paymentTx = null;
+	this._commitmentTx = null
+	this._paymentTx = null
 }
 
 Provider.prototype.setConsumerPubKey = function(consumerPubKey) {
 	if (!consumerPubKey instanceof String) {
-		throw new Error('consumerPubKey should be type String');
+		throw new Error('consumerPubKey should be type String')
 	} 
-	this._consumerPubKey = new Buffer(consumerPubKey, 'hex');
+	this._consumerPubKey = new Buffer(consumerPubKey, 'hex')
 }
 
 /**
@@ -55,7 +55,7 @@ Provider.prototype.setConsumerPubKey = function(consumerPubKey) {
  */
 Provider.prototype._checkConsumerPubKey = function() {
 	if (!this._consumerPubKey) {
-		throw new Error('consumerPubKey should be set for the Provider instance');
+		throw new Error('consumerPubKey should be set for the Provider instance')
 	}
 }
 
@@ -65,7 +65,7 @@ Provider.prototype._checkConsumerPubKey = function() {
  * return the public key for the multisig
  */
 Provider.prototype.getSharedPubKey = function() {
-	return this._providerKeyPair.getPublicKeyBuffer().toString('hex');
+	return this._providerKeyPair.getPublicKeyBuffer().toString('hex')
 }
 
 /**
@@ -80,21 +80,21 @@ Provider.prototype.signRefundTx = function(txHash) {
 	
 	// TODO: check refundTx is correct
 	var tx = bitcoin.Transaction.fromHex(txHash);
-	var txb = bitcoin.TransactionBuilder.fromTransaction(tx, this._network);
+	var txb = bitcoin.TransactionBuilder.fromTransaction(tx, this._network)
 	var pubKeys = [
 		this._consumerPubKey,
 		this._providerKeyPair.getPublicKeyBuffer()
 	];
-	var redeemScript = bitcoin.script.multisigOutput(2, pubKeys);
-	txb.sign(0, this._providerKeyPair, redeemScript);
-	this._refundTx = txb.build();
+	var redeemScript = bitcoin.script.multisigOutput(2, pubKeys)
+	txb.sign(0, this._providerKeyPair, redeemScript)
+	this._refundTx = txb.build()
 }
 
 Provider.prototype.sendRefundTx = function(callback) {
 	if (!this._refundTx) {
-		throw new Error('refundTx not yet received and signed');
+		throw new Error('refundTx not yet received and signed')
 	}
-	callback(this._refundTx.toHex());
+	callback(this._refundTx.toHex())
 }
 
 /**
@@ -102,7 +102,7 @@ Provider.prototype.sendRefundTx = function(callback) {
  */
 Provider.prototype.broadcastCommitmentTx = function(txHash, callback) {
 	// verify commitmentTx
-	callback(txHash);
+	callback(txHash)
 }
 
 /**
@@ -116,12 +116,12 @@ Provider.prototype.broadcastCommitmentTx = function(txHash, callback) {
  * @PaymentTxError
  */
 Provider.prototype.checkAndSignPaymentTx = function(txHash, expectedAmount) {	
-	this._checkConsumerPubKey();
-	var tx = bitcoin.Transaction.fromHex(txHash);
+	this._checkConsumerPubKey()
+	var tx = bitcoin.Transaction.fromHex(txHash)
 
 	// check transaction
 	if (tx.outs[0].value !== expectedAmount) {
-		throw new PaymentTxError('consumer prepared invalid paymentTx');
+		throw new PaymentTxError('consumer prepared invalid paymentTx')
 	}
 
 	this._paymentTx = Payment.signTx({
@@ -129,14 +129,14 @@ Provider.prototype.checkAndSignPaymentTx = function(txHash, expectedAmount) {
 		serverMultiSigKey : this._providerKeyPair,
 		clientPublicKey : this._consumerPubKey,
 		network : this._network
-	});
+	})
 }
 
 Provider.prototype.broadcastPaymentTx = function(callback) {
 	if (this._paymentTx === null) {
-		throw new Error('there is no paymentTx yet');
+		throw new Error('there is no paymentTx yet')
 	}
-	callback(this._paymentTx.toHex());
+	callback(this._paymentTx.toHex())
 }
 
 module.exports = Provider;

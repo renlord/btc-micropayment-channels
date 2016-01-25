@@ -1,9 +1,10 @@
 "use strict";
 
-var bitcoin = require('bitcoinjs-lib');
+const bitcoin   = require('bitcoinjs-lib')
+const script    = require('../script')
 
-const BTC = 100000000;
-const MIN_FEE = 1000;
+const BTC       = 100000000
+const MIN_FEE   = 1000
 
 /**
  * Payment object is used to pay provider
@@ -13,8 +14,7 @@ const MIN_FEE = 1000;
  * Arguments {}
  * @network [OPTIONAL]
  * @fee [OPTIONAL]
- * @timelock [OPTIONAL]
- * @sequence [OPTIONAL]
+ * @timelock
  * @amount 
  * @utxos
  * @refundAddress
@@ -23,7 +23,7 @@ const MIN_FEE = 1000;
  * @serverPubKey
  */
 function Payment(args) {
-	this.compulsoryProperties = ['amount', 'utxos', 'refundAddress', 
+	this.compulsoryProperties = ['amount', 'utxos', 'refundAddress', 'timelock',
 		'paymentAddress', 'clientMultiSigKey', 'serverPubKey'
 	];
 
@@ -49,36 +49,26 @@ function Payment(args) {
 		throw new Error('insufficient input value to cover for output value');
 	}
 
-	if (args.locktime) {
-		if (args.sequence && (args.sequence > 0)) {
-			throw new ParameterError('sequence cannot be greater than zero when there is locktime');
-		}
-
-		if (args.locktime < ((new Date).getTime() / 1000)) {
-			throw new ParameterError('locktime cannot be before current time');
-		}
-		txb.tx.locktime = args.locktime;
-		args.sequence = 0;
-	}	
-
-	if (args.sequence && (args.sequence >= bitcoin.Transaction.DEFAULT_SEQUENCE)) {
-		throw new ParameterError('sequence cannot be greater or equal to max sequence');
-	}
-
 	var utxosValue = 0;
-	var pubKeys = [
-		args.clientMultiSigKey.getPublicKeyBuffer(),
-		new Buffer(args.serverPubKey, 'hex')
-	];
-	var redeemScript = bitcoin.script.multisigOutput(2, pubKeys);
+
+    var redeemScript = script.fundingSharedOutputScriptHash({
+        providerPubKey: new Buffer(args.serverPubKey, 'hex'),
+        consumerPubKey: args.clientMultiSigKey.getPublicKeyBuffer(),
+        timelock: args.timelock
+    })
+    var p2sh = bitcoin.script.scriptHashOutput(bitcoin.crypto.hash160(redeemScript))
+
 	for (var i = 0; i < args.utxos.length; i++) {
-		utxosValue += (args.utxos[i].amount * BTC);
-		txb.addInput(args.utxos[i].txid, args.utxos[i].vout, args.sequence);
-		
+        console.log(args.utxos[i])
+		utxosValue += (args.utxos[i].amount * BTC)
+		txb.addInput(args.utxos[i].txid, args.utxos[i].vout, 
+                bitcoin.Transaction.DEFAULT_SEQUENCE, p2sh)
 	}
+
+    utxosValue = Math.round(utxosValue)
 
 	if (utxosValue < (args.amount + args.fee)) {
-		throw new ParameterError('insufficient inputs to finance outputs and fees');
+		throw new Error('insufficient inputs to finance outputs and fees');
 	}
 
 	txb.addOutput(args.paymentAddress, args.amount);
@@ -121,11 +111,12 @@ Payment.signTx = function(args) {
 	var network = args.network ? args.network : bitcoin.networks.testnet;
 
 	var txb = bitcoin.TransactionBuilder.fromTransaction(args.tx, network);
-	var pubKeys = [
-		new Buffer(args.clientPublicKey, 'hex'),
-		args.serverMultiSigKey.getPublicKeyBuffer()
-	];	
-	var redeemScript = bitcoin.script.multisigOutput(2, pubKeys);
+
+    var redeemScript = script.fundingSharedOutputScriptHash({
+        consumerPubKey: args.clientMultiSigKey.getPublicKeyBuffer(),
+        providerPubKey: serverPubKey,
+        timelock: args.timelock
+    })
 
 	for (var i = 0; i < txb.inputs.length; i++) {
 		txb.sign(i, args.serverMultiSigKey, redeemScript);
